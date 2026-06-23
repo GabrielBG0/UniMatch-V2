@@ -26,12 +26,12 @@ Most configs default to `dinov2_small`.
 
 Update `data_root` in `configs/<dataset>.yaml` to point to your local dataset path.
 
-| Dataset     | Size   | Notes                                          |
-|-------------|--------|------------------------------------------------|
-| PASCAL VOC  | ~2 GB  | Easiest to start with                          |
-| ADE20K      | ~4 GB  |                                                |
-| Cityscapes  | ~11 GB | Requires registration at cityscapes-dataset.com |
-| COCO        | ~20 GB |                                                |
+| Dataset    | Size   | Notes                                           |
+| ---------- | ------ | ----------------------------------------------- |
+| PASCAL VOC | ~2 GB  | Easiest to start with                           |
+| ADE20K     | ~4 GB  |                                                 |
+| Cityscapes | ~11 GB | Requires registration at cityscapes-dataset.com |
+| COCO       | ~20 GB |                                                 |
 
 Train/val split files are already included in `splits/` — no need to generate them.
 
