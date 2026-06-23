@@ -1,0 +1,23 @@
+# Training outputs
+exp/
+
+# Dataset symlinks (machine-specific paths)
+data/
+
+# Model weights
+pretrained/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~

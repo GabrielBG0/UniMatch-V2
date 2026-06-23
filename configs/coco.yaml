@@ -1,6 +1,6 @@
 # arguments for dataset
 dataset: coco
-data_root: Your/COCO/Path
+data_root: ./data/coco
 nclass: 81
 crop_size: 518
 

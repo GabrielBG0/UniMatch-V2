@@ -1,6 +1,6 @@
 # arguments for dataset
 dataset: ade20k
-data_root: Your/ADE20K/Path
+data_root: ./data/ade20k
 nclass: 150
 crop_size: 518
 

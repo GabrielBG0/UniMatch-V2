@@ -1,6 +1,6 @@
 # arguments for dataset
 dataset: cityscapes
-data_root: Your/Cityscapes/Path
+data_root: ./data/cityscapes
 nclass: 19
 crop_size: 798
 
