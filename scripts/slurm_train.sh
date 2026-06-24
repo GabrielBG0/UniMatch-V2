@@ -15,7 +15,7 @@
 #SBATCH --account=spfm
 #SBATCH --job-name=unimatch_v2
 #SBATCH --time=24:00:00
-#SBATCH --exclude=sdumont2nd2025,sdumont2nd2046,sdumont2nd2020
+
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=4
 #SBATCH --gpus-per-node=4

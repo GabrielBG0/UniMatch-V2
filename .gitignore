@@ -8,9 +8,6 @@ pretrained/
 
 logs/
 
-# Model weights
-pretrained/
-
 # Python
 __pycache__/
 *.pyc
