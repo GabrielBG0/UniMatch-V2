@@ -4,6 +4,10 @@ exp/
 # Dataset symlinks (machine-specific paths)
 data/
 
+pretrained/
+
+logs/
+
 # Model weights
 pretrained/
 

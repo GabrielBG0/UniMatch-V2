@@ -50,9 +50,12 @@ CAT_TO_TRAIN = {cat_id: i + 1 for i, cat_id in enumerate(COCO_CAT_IDS)}
 
 
 def download_annotations():
+    import zipfile
+
     if ANNOTATIONS_DIR.exists() and list(ANNOTATIONS_DIR.glob("instances_*.json")):
         return
-    if not ANNOTATIONS_ZIP.exists():
+
+    def _download():
         print(f"Downloading COCO annotations (~241 MB)...")
         print(f"  {ANNOTATIONS_URL}")
         print(f"  -> {ANNOTATIONS_ZIP}")
@@ -66,8 +69,18 @@ def download_annotations():
         urllib.request.urlretrieve(ANNOTATIONS_URL, ANNOTATIONS_ZIP, reporthook=progress)
         print()
 
+    if ANNOTATIONS_ZIP.exists():
+        try:
+            with zipfile.ZipFile(ANNOTATIONS_ZIP) as zf:
+                zf.testzip()
+        except zipfile.BadZipFile:
+            print(f"WARNING: {ANNOTATIONS_ZIP.name} is corrupt or incomplete, re-downloading...")
+            ANNOTATIONS_ZIP.unlink()
+            _download()
+    else:
+        _download()
+
     print(f"Extracting {ANNOTATIONS_ZIP.name}...")
-    import zipfile
     with zipfile.ZipFile(ANNOTATIONS_ZIP) as zf:
         zf.extractall(SRC_DIR)
     print(f"  Extracted to {SRC_DIR / 'annotations'}")
