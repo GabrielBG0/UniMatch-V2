@@ -35,7 +35,13 @@ class SemiDataset(Dataset):
         if self.mode == 'train_u':
             mask = Image.fromarray(np.zeros((img.size[1], img.size[0]), dtype=np.uint8))
         else:
-            mask = Image.fromarray(np.array(Image.open(os.path.join(self.root, id.split(' ')[1])))) 
+            mask = Image.fromarray(np.array(Image.open(os.path.join(self.root, id.split(' ')[1]))))
+            if self.name == 'ade20k':
+                # Raw annotations are 1-indexed (0=void, 1-150=classes).
+                # Remap to 0-indexed (0-149=classes, 255=ignore).
+                arr = np.array(mask).astype(np.int32) - 1
+                arr[arr < 0] = 255
+                mask = Image.fromarray(arr.astype(np.uint8))
         
         if self.mode == 'val':
             img, mask = normalize(img, mask)

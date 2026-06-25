@@ -4,8 +4,9 @@ Set up ADE20K-150 dataset for UniMatch V2 (nclass=150).
 
 The HuggingFace parquet on disk is ADE20K-2021 Full (3688 categories).
 The split files and config expect the ADE20K-150 scene parsing benchmark from
-MIT CSAIL (ADEChallengeData2016), whose annotation PNGs already contain
-0-indexed class labels 0-149 (0=background, 150 classes total).
+MIT CSAIL (ADEChallengeData2016). The raw annotation PNGs use 1-indexed labels
+(0=void/unlabeled, 1-150=the 150 semantic classes). SemiDataset remaps them
+at load time to 0-indexed (0-149=classes, 255=void/ignore).
 
 This script downloads ADEChallengeData2016.zip (~953 MB) from MIT CSAIL and
 extracts it into the processed output directory.
