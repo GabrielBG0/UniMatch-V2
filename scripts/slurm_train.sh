@@ -30,19 +30,28 @@
 set -euo pipefail
 
 # ── experiment config ────────────────────────────────────────────────────────
-dataset='pascal'
-method='unimatch_v2'
-exp='dinov2_small'
-split='366'
-port=12345
+# Defaults — override via: sbatch --export=ALL,DATASET=cityscapes,SPLIT=1_8,...
+dataset="${DATASET:-pascal}"
+method="${METHOD:-unimatch_v2}"
+exp="${EXP:-dinov2_small}"
+split="${SPLIT:-366}"
+seed="${SEED:-0}"
+port="${PORT:-12345}"
 # ────────────────────────────────────────────────────────────────────────────
 
-config=configs/${dataset}.yaml
+# dinov2_base → configs/<dataset>_base.yaml; others → configs/<dataset>.yaml
+if [[ "$exp" == *"_base"* ]]; then
+    config=configs/${dataset}_base.yaml
+else
+    config=configs/${dataset}.yaml
+fi
+
 labeled_id_path=splits/${dataset}/${split}/labeled.txt
 unlabeled_id_path=splits/${dataset}/${split}/unlabeled.txt
-save_path=exp/${dataset}/${method}/${exp}/${split}
+save_path=exp_seeded/${dataset}/${method}/${exp}/${split}/seed${seed}
 
 mkdir -p "$save_path" logs/unimatch_v2
+
 
 export PATH="$HOME/.local/bin:$PATH"
 export PYTHONUNBUFFERED=1
@@ -50,7 +59,7 @@ export PYTHONUNBUFFERED=1
 echo "========================================"
 echo "Job:        $SLURM_JOB_NAME ($SLURM_JOB_ID)"
 echo "Node:       $SLURMD_NODENAME"
-echo "Dataset:    $dataset  |  Method: $method  |  Split: $split"
+echo "Dataset:    $dataset  |  Method: $method  |  Split: $split  |  Seed: $seed"
 echo "Save path:  $save_path"
 echo "Started:    $(date)"
 echo "========================================"
@@ -61,7 +70,8 @@ srun uv run python "$method.py" \
     --labeled-id-path "$labeled_id_path" \
     --unlabeled-id-path "$unlabeled_id_path" \
     --save-path "$save_path" \
-    --port "$port"
+    --port "$port" \
+    --seed "$seed"
 
 echo "========================================"
 echo "Finished: $(date)"

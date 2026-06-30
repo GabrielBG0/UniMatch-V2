@@ -1,5 +1,6 @@
 # Training outputs
 exp/
+exp_seeded/
 
 # Dataset symlinks (machine-specific paths)
 data/

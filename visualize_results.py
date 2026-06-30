@@ -17,10 +17,13 @@ import glob
 import re
 from collections import defaultdict
 
+import csv
+
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 from tensorboard.backend.event_processing import event_accumulator
 
 # ── config ───────────────────────────────────────────────────────────────────
@@ -42,7 +45,37 @@ BACKBONE_STYLE = {
     'dinov2_base':  dict(marker='s', linestyle='--', color='darkorange', label='DINOv2-B'),
 }
 
+PAPER_BACKBONE_STYLE = {
+    'Small': dict(marker='o', linestyle=':',  color='steelblue'),
+    'Base':  dict(marker='s', linestyle=':', color='darkorange'),
+}
+
+PAPER_RESULTS_CSV = 'paper_results.csv'
+
+# dataset name as it appears in the CSV vs internal key
+PAPER_DATASET_KEY = {
+    'ADE20K':     'ade20k',
+    'Cityscapes': 'cityscapes',
+    'COCO':       'coco',
+}
+
 # ── helpers ──────────────────────────────────────────────────────────────────
+
+def load_paper_results():
+    """Return {dataset_key: {backbone_label: [(frac_val, miou), ...]}}."""
+    results = defaultdict(lambda: defaultdict(list))
+    if not os.path.exists(PAPER_RESULTS_CSV):
+        return results
+    with open(PAPER_RESULTS_CSV) as f:
+        for row in csv.DictReader(f):
+            dataset_key = PAPER_DATASET_KEY.get(row['Dataset'])
+            if dataset_key is None:
+                continue
+            num_s, den_s = row['Labeled Regime'].split('/')
+            frac_val = int(num_s) / int(den_s)
+            results[dataset_key][row['Backbone']].append((frac_val, float(row['mIoU'])))
+    return results
+
 
 def load_scalars(run_dir):
     """Return {tag: [(step, value), ...]} for a run directory."""
@@ -65,6 +98,21 @@ def count_labeled(dataset, split):
         return sum(1 for _ in f)
 
 
+def parse_fraction(split):
+    """Convert split name like '1_16' to (numerator, denominator, float)."""
+    m = re.match(r'^(\d+)_(\d+)$', split)
+    if m:
+        num, den = int(m.group(1)), int(m.group(2))
+        return num, den, num / den
+    return None, None, None
+
+
+def fraction_label(num, den):
+    if num == 1:
+        return f'1/{den}'
+    return f'{num}/{den}'
+
+
 def discover_experiments():
     """Walk exp/ and return a list of experiment dicts."""
     exps = []
@@ -78,10 +126,12 @@ def discover_experiments():
             continue
         if not glob.glob(os.path.join(run_dir, '*.tfevents*')):
             continue
+        frac_num, frac_den, frac_val = parse_fraction(split)
         exps.append(dict(
             dataset=dataset, backbone=backbone, split=split,
             run_dir=run_dir,
             n_labeled=count_labeled(dataset, split),
+            frac_num=frac_num, frac_den=frac_den, frac_val=frac_val,
         ))
     return exps
 
@@ -118,27 +168,36 @@ def smooth(values, window_frac=0.02):
 
 # ── figure 1: mIoU vs. labeled samples ───────────────────────────────────────
 
-def fig_miou_vs_labeled(exps):
+def fig_miou_vs_labeled(exps, paper_results):
     fig, axes = plt.subplots(1, 3, figsize=(14, 4.5))
-    fig.suptitle('UniMatch V2 — Best mIoU vs. Labeled Samples', fontsize=13, fontweight='bold')
+    fig.suptitle('UniMatch V2 Reproduction — Best mIoU vs. Labeled Fraction', fontsize=13, fontweight='bold')
+
+    # backbone label used in paper CSV -> internal backbone key
+    paper_to_internal = {'Small': 'dinov2_small', 'Base': 'dinov2_base'}
 
     for ax, dataset in zip(axes, DATASETS):
         ax.set_title(DATASET_LABEL[dataset], fontsize=11)
-        ax.set_xlabel('Labeled samples')
+        ax.set_xlabel('Fraction of labeled data')
         ax.set_ylabel('Best mIoU (EMA)')
         ax.set_xscale('log')
         ax.grid(True, alpha=0.3, linestyle='--')
 
+        all_fracs = {}  # frac_val -> label string for tick labeling
         plotted_any = False
+
+        # ── our runs ──────────────────────────────────────────────────────────
         for backbone, style in BACKBONE_STYLE.items():
             pts = []
             for e in exps:
                 if e['dataset'] != dataset or e['backbone'] != backbone:
                     continue
+                if e['frac_val'] is None:
+                    continue
                 scalars = load_scalars(e['run_dir'])
                 miou = best_miou_ema(scalars)
-                if miou is not None and e['n_labeled']:
-                    pts.append((e['n_labeled'], miou))
+                if miou is not None:
+                    pts.append((e['frac_val'], miou))
+                    all_fracs[e['frac_val']] = fraction_label(e['frac_num'], e['frac_den'])
             if not pts:
                 continue
             pts.sort()
@@ -151,8 +210,31 @@ def fig_miou_vs_labeled(exps):
                             xytext=(0, 7), ha='center', fontsize=7.5, color=style['color'])
             plotted_any = True
 
+        # ── paper reference ───────────────────────────────────────────────────
+        for paper_bb, pstyle in PAPER_BACKBONE_STYLE.items():
+            pts = sorted(paper_results[dataset].get(paper_bb, []))
+            if not pts:
+                continue
+            xs, ys = zip(*pts)
+            for fv in xs:
+                num_s, den_s = 1, round(1 / fv)
+                all_fracs[fv] = fraction_label(num_s, den_s)
+            internal_bb = paper_to_internal[paper_bb]
+            base_style = BACKBONE_STYLE[internal_bb]
+            ax.plot(xs, ys, marker=pstyle['marker'], linestyle=pstyle['linestyle'],
+                    color=pstyle['color'], alpha=0.6,
+                    label=f"{base_style['label']} (paper)",
+                    linewidth=1.4, markersize=5)
+            plotted_any = True
+
+        if all_fracs:
+            sorted_fracs = sorted(all_fracs.keys())
+            ax.xaxis.set_major_locator(mticker.FixedLocator(sorted_fracs))
+            ax.xaxis.set_major_formatter(mticker.FixedFormatter([all_fracs[f] for f in sorted_fracs]))
+            ax.xaxis.set_minor_locator(mticker.NullLocator())
+            ax.tick_params(axis='x', which='major', labelsize=8)
         if plotted_any:
-            ax.legend(fontsize=9)
+            ax.legend(fontsize=8)
 
     fig.tight_layout()
     return fig
@@ -299,8 +381,11 @@ def main():
         print(f"  {e['dataset']:12s}  {e['backbone']:14s}  {e['split']:6s}  "
               f"({e['n_labeled']} labeled)")
 
+    paper_results = load_paper_results()
+    print(f'Loaded paper results for: {list(paper_results.keys())}')
+
     figs = [
-        ('1_miou_vs_labeled', fig_miou_vs_labeled(exps)),
+        ('1_miou_vs_labeled', fig_miou_vs_labeled(exps, paper_results)),
         ('2_training_curves', fig_training_curves(exps)),
         ('3_per_class_iou',   fig_per_class_iou(exps)),
         ('4_loss_curves',     fig_loss_curves(exps)),

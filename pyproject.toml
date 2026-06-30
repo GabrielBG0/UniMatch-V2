@@ -9,6 +9,7 @@ dependencies = [
     "einops>=0.8.2",
     "h5py>=3.16.0",
     "matplotlib>=3.10.9",
+    "minerva>=0.3.10b0",
     "opencv-python>=4.13.0.92",
     "pyyaml>=5.4.0",
     "scikit-image>=0.25.2",

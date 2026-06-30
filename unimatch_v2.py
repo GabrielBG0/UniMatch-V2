@@ -3,7 +3,9 @@ from copy import deepcopy
 import logging
 import os
 import pprint
+import random
 
+import numpy as np
 import torch
 from torch import nn
 import torch.backends.cudnn as cudnn
@@ -28,6 +30,7 @@ parser.add_argument('--unlabeled-id-path', type=str, required=True)
 parser.add_argument('--save-path', type=str, required=True)
 parser.add_argument('--local_rank', '--local-rank', default=0, type=int)
 parser.add_argument('--port', default=None, type=int)
+parser.add_argument('--seed', default=0, type=int)
 
 
 def main():
@@ -40,12 +43,19 @@ def main():
 
     rank, world_size = setup_distributed(port=args.port)
 
+    seed = args.seed + rank
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
     if rank == 0:
         all_args = {**cfg, **vars(args), 'ngpus': world_size}
         logger.info('{}\n'.format(pprint.pformat(all_args)))
-        
+        logger.info('seed: {}\n'.format(args.seed))
+
         writer = SummaryWriter(args.save_path)
-        
+
         os.makedirs(args.save_path, exist_ok=True)
 
     cudnn.enabled = True
