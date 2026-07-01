@@ -30,6 +30,8 @@ parser.add_argument('--labeled-id-path', type=str, required=True)
 parser.add_argument('--unlabeled-id-path', type=str, default=None)
 parser.add_argument('--pretrained-path', type=str, default=None)
 parser.add_argument('--save-path', type=str, required=True)
+parser.add_argument('--checkpoint-path', type=str, default=None,
+                     help='Where to read/write latest.pth and best.pth. Defaults to --save-path.')
 parser.add_argument('--local_rank', '--local-rank', default=0, type=int)
 parser.add_argument('--port', default=None, type=int)
 parser.add_argument('--seed', default=0, type=int)
@@ -112,6 +114,8 @@ def main():
     logger = init_log('global', logging.INFO)
     logger.propagate = 0
 
+    checkpoint_path = args.checkpoint_path or args.save_path
+
     rank, world_size = setup_distributed(port=args.port)
 
     seed = args.seed + rank
@@ -130,6 +134,7 @@ def main():
         writer = SummaryWriter(args.save_path)
 
         os.makedirs(args.save_path, exist_ok=True)
+        os.makedirs(checkpoint_path, exist_ok=True)
 
     cudnn.enabled = True
     cudnn.benchmark = True
@@ -201,8 +206,8 @@ def main():
     previous_best = 0.0
     epoch = -1
     
-    if os.path.exists(os.path.join(args.save_path, 'latest.pth')):
-        checkpoint = torch.load(os.path.join(args.save_path, 'latest.pth'), map_location='cpu')
+    if os.path.exists(os.path.join(checkpoint_path, 'latest.pth')):
+        checkpoint = torch.load(os.path.join(checkpoint_path, 'latest.pth'), map_location='cpu', weights_only=False)
         model.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         epoch = checkpoint['epoch']
@@ -269,9 +274,9 @@ def main():
                 'epoch': epoch,
                 'previous_best': previous_best,
             }
-            torch.save(checkpoint, os.path.join(args.save_path, 'latest.pth'))
+            torch.save(checkpoint, os.path.join(checkpoint_path, 'latest.pth'))
             if is_best:
-                torch.save(checkpoint, os.path.join(args.save_path, 'best.pth'))
+                torch.save(checkpoint, os.path.join(checkpoint_path, 'best.pth'))
 
 
 if __name__ == '__main__':

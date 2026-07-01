@@ -49,8 +49,9 @@ fi
 labeled_id_path=splits/${dataset}/${split}/labeled.txt
 unlabeled_id_path=splits/${dataset}/${split}/unlabeled.txt
 save_path=exp_seeded/${dataset}/${method}/${exp}/${split}/seed${seed}
+checkpoint_path=/petrobr/parceirosbr/spfm/gabriel.gutierrez/unimatch_weights/${dataset}/${method}/${exp}/${split}/seed${seed}
 
-mkdir -p "$save_path" logs/unimatch_v2
+mkdir -p "$save_path" "$checkpoint_path" logs/unimatch_v2
 
 
 export PATH="$HOME/.local/bin:$PATH"
@@ -61,6 +62,7 @@ echo "Job:        $SLURM_JOB_NAME ($SLURM_JOB_ID)"
 echo "Node:       $SLURMD_NODENAME"
 echo "Dataset:    $dataset  |  Method: $method  |  Split: $split  |  Seed: $seed"
 echo "Save path:  $save_path"
+echo "Ckpt path:  $checkpoint_path"
 echo "Started:    $(date)"
 echo "========================================"
 
@@ -70,6 +72,7 @@ srun uv run python "$method.py" \
     --labeled-id-path "$labeled_id_path" \
     --unlabeled-id-path "$unlabeled_id_path" \
     --save-path "$save_path" \
+    --checkpoint-path "$checkpoint_path" \
     --port "$port" \
     --seed "$seed"
 
