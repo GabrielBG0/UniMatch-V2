@@ -34,6 +34,12 @@ METHOD     = 'unimatch_v2'
 
 DATASETS = ['cityscapes', 'ade20k', 'coco']
 
+# Splits to exclude per dataset -- e.g. extra runs done for exploration that
+# don't have a matching regime in the paper's reported results.
+EXCLUDE_SPLITS = {
+    'cityscapes': {'1_30'},
+}
+
 DATASET_LABEL = {
     'cityscapes': 'Cityscapes (19 cls)',
     'ade20k':     'ADE20K (150 cls)',
@@ -124,6 +130,8 @@ def discover_experiments():
         dataset, backbone, split = parts[-4], parts[-2], parts[-1]
         if dataset not in DATASETS:
             continue
+        if split in EXCLUDE_SPLITS.get(dataset, set()):
+            continue
         if not glob.glob(os.path.join(run_dir, '*.tfevents*')):
             continue
         frac_num, frac_den, frac_val = parse_fraction(split)
@@ -161,9 +169,22 @@ def per_class_ious_at_best(scalars):
 
 
 def smooth(values, window_frac=0.02):
-    w = max(1, int(len(values) * window_frac))
-    kernel = np.ones(w) / w
-    return np.convolve(values, kernel, mode='same')
+    values = np.asarray(values, dtype=float)
+    nan_mask = np.isnan(values)
+    if nan_mask.any():
+        # linearly interpolate isolated bad points (e.g. 0/0 in loss_u when a
+        # batch's crop is entirely ignore-region) so one NaN doesn't blank out
+        # a whole smoothing window
+        idx = np.arange(len(values))
+        values = values.copy()
+        values[nan_mask] = np.interp(idx[nan_mask], idx[~nan_mask], values[~nan_mask])
+
+    n = len(values)
+    w = max(1, int(n * window_frac))
+    kernel = np.ones(w)
+    num = np.convolve(values, kernel, mode='same')
+    den = np.convolve(np.ones(n), kernel, mode='same')
+    return num / den
 
 
 # ── figure 1: mIoU vs. labeled samples ───────────────────────────────────────
@@ -182,7 +203,8 @@ def fig_miou_vs_labeled(exps, paper_results):
         ax.set_xscale('log')
         ax.grid(True, alpha=0.3, linestyle='--')
 
-        all_fracs = {}  # frac_val -> label string for tick labeling
+        all_fracs = {}     # frac_val -> label string for tick labeling
+        all_frac_dims = {}  # frac_val -> (num, den) for split-size lookup
         plotted_any = False
 
         # ── our runs ──────────────────────────────────────────────────────────
@@ -198,6 +220,7 @@ def fig_miou_vs_labeled(exps, paper_results):
                 if miou is not None:
                     pts.append((e['frac_val'], miou))
                     all_fracs[e['frac_val']] = fraction_label(e['frac_num'], e['frac_den'])
+                    all_frac_dims[e['frac_val']] = (e['frac_num'], e['frac_den'])
             if not pts:
                 continue
             pts.sort()
@@ -219,6 +242,7 @@ def fig_miou_vs_labeled(exps, paper_results):
             for fv in xs:
                 num_s, den_s = 1, round(1 / fv)
                 all_fracs[fv] = fraction_label(num_s, den_s)
+                all_frac_dims.setdefault(fv, (num_s, den_s))
             internal_bb = paper_to_internal[paper_bb]
             base_style = BACKBONE_STYLE[internal_bb]
             ax.plot(xs, ys, marker=pstyle['marker'], linestyle=pstyle['linestyle'],
@@ -234,7 +258,26 @@ def fig_miou_vs_labeled(exps, paper_results):
             ax.xaxis.set_minor_locator(mticker.NullLocator())
             ax.tick_params(axis='x', which='major', labelsize=8)
         if plotted_any:
-            ax.legend(fontsize=8)
+            main_legend = ax.legend(fontsize=8, loc='upper left')
+            ax.add_artist(main_legend)
+
+        # ── sub-legend: labeled-sample count for each split ────────────────────
+        size_rows = []
+        for fv in sorted(all_frac_dims):
+            num, den = all_frac_dims[fv]
+            n = count_labeled(dataset, f'{num}_{den}')
+            n_str = f'{n}' if n is not None else '?'
+            size_rows.append((fraction_label(num, den), n_str))
+        sizes_lines = []
+        if size_rows:
+            label_w = max(len(lbl) for lbl, _ in size_rows)
+            n_w = max(len(n) for _, n in size_rows)
+            sizes_lines = [f'{lbl:<{label_w}}: {n:>{n_w}} imgs' for lbl, n in size_rows]
+        if sizes_lines:
+            ax.text(0.98, 0.02, '\n'.join(sizes_lines),
+                    transform=ax.transAxes, ha='right', va='bottom', fontsize=7,
+                    family='monospace',
+                    bbox=dict(boxstyle='round', facecolor='white', edgecolor='gray', alpha=0.85))
 
     fig.tight_layout()
     return fig
